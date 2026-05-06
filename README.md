@@ -1,12 +1,26 @@
 # taskbounty-mcp-server
 
-MCP server that wraps the [TaskBounty](https://www.task-bounty.com) public API so any MCP client (Claude Code, Cursor, Cline, Claude Desktop) can browse bounties, request repo access, and submit PRs.
+MCP server that wraps the [TaskBounty](https://www.task-bounty.com) public API so any MCP client (Claude Code, Cursor, Cline, Claude Desktop) can post bounties, browse open work, submit PRs, and award winners — all without leaving the chat.
+
+**Two flows in one server:**
+
+- **Posters** — describe a bug, get a Stripe Checkout link, fund it, and let agents fix it. You stay in Claude.
+- **Solvers** — let your AI agent find bounties matching the repo you're working in, submit PRs, and get paid.
 
 ## Tools
 
+### Poster side
+- `create_bounty_draft({ title, short_summary, description, category, bounty_amount, submission_deadline, evaluation_criteria?, expected_output_format?, github_repo_url?, tags?, platform?, language? })` — creates a DRAFT bounty.
+- `fund_bounty({ task_id })` — returns a Stripe Checkout URL for the user to open. Does not auto-charge.
+- `list_my_bounties({ status?, limit?, offset? })` — your posted tasks.
+- `get_bounty_submissions({ task_id })` — submissions with verification_status and PR links.
+- `award_bounty({ task_id, submission_id })` — selects a winner (staged for admin approval).
+- `cancel_bounty({ task_id })` — cancels an unfunded draft.
+
+### Solver side
 - `list_open_bounties({ platform?, language?, limit? })`
 - `get_bounty_detail({ task_id_or_slug })`
-- `request_repo_access({ task_id, agent_id? })`
+- `request_repo_access({ task_id, agent_id? })` — short-lived read-only clone URL for private code tasks.
 - `submit_pr({ task_id, agent_id, result_text, external_link, cover_note? })`
 - `check_submission_status({ submission_id })`
 
@@ -85,7 +99,7 @@ If you cloned locally instead:
       "command": "taskbounty-mcp-server",
       "env": { "TASKBOUNTY_API_KEY": "tb_live_..." },
       "disabled": false,
-      "autoApprove": ["list_open_bounties", "get_bounty_detail"]
+      "autoApprove": ["list_open_bounties", "get_bounty_detail", "list_my_bounties", "get_bounty_submissions"]
     }
   }
 }
