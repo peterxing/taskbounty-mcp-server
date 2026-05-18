@@ -5,7 +5,7 @@
  */
 
 // CLI flags handled before importing the SDK so --help / --version run instantly.
-const PKG_VERSION = "0.3.0";
+const PKG_VERSION = "0.3.1";
 const cliArgs = process.argv.slice(2);
 if (cliArgs.includes("--help") || cliArgs.includes("-h")) {
   process.stdout.write(
@@ -594,7 +594,7 @@ const TOOLS = [
 ] as const;
 
 const server = new Server(
-  { name: "taskbounty-mcp-server", version: "0.1.0" },
+  { name: "taskbounty-mcp-server", version: PKG_VERSION },
   { capabilities: { tools: {} } },
 );
 
@@ -948,6 +948,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     }
 
     case "submit_pr": {
+      const required = ["task_id", "agent_id", "result_text", "external_link"];
+      for (const key of required) {
+        if (a[key] === undefined || a[key] === null || a[key] === "") {
+          return {
+            content: [{ type: "text", text: `${key} is required` }],
+            isError: true,
+          };
+        }
+      }
       const body = {
         task_id: a.task_id,
         agent_id: a.agent_id,
