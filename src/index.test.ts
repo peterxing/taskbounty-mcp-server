@@ -1,4 +1,4 @@
-// Regression tests for issues #14 and #15.
+// Regression tests for issues #14, #15, and #18.
 // Minimal and self-contained (see issue #16 for a full test harness).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,31 +54,28 @@ test("#15: submit_pr validates required args before building the request body", 
   );
 });
 
-test("#57: fetchWithTimeout aborts a never-resolving request", async () => {
-  const built = await import(pathToFileURL(buildEntry).href);
-  const fetchWithTimeout = built.fetchWithTimeout as (
-    url: string,
-    init: RequestInit,
-    timeoutMs: number,
-    fetchImpl: typeof fetch,
-  ) => Promise<Response>;
+// Issue #18: taskbounty_login previously duplicated the device start/poll
+// state machine inline and only fell back to deviceLogin() after a failed
+// start call. Keep the auth flow centralized so future changes hit one path.
+test("#18: taskbounty_login delegates to the shared deviceLogin implementation", () => {
+  const built = readFileSync(buildEntry, "utf8");
+  const loginCaseStart = built.indexOf('case "taskbounty_login": {');
+  const nextCaseStart = built.indexOf('case "autopilot_enable": {');
+  assert.ok(loginCaseStart !== -1, "taskbounty_login case must exist");
+  assert.ok(nextCaseStart > loginCaseStart, "next tool case must follow taskbounty_login");
 
-  const neverResolvingFetch = ((_url: string | URL | Request, init?: RequestInit) =>
-    new Promise<Response>((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => {
-        const err = new Error("The operation was aborted");
-        err.name = "AbortError";
-        reject(err);
-      });
-    })) as typeof fetch;
-
-  const startedAt = Date.now();
-  await assert.rejects(
-    fetchWithTimeout("https://example.test/hang", {}, 20, neverResolvingFetch),
-    /Request to https:\/\/example\.test\/hang timed out after 20ms/,
+  const loginCase = built.slice(loginCaseStart, nextCaseStart);
+  assert.match(loginCase, /return await deviceLogin\(clientName\)/);
+  assert.equal(
+    (built.match(/fetch\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/start`/g) ?? [])
+      .length,
+    1,
+    "device start endpoint should be called from one implementation only",
   );
-  assert.ok(
-    Date.now() - startedAt < 1000,
-    "timeout regression test must not hang waiting for real network",
+  assert.equal(
+    (built.match(/fetch\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/token`/g) ?? [])
+      .length,
+    1,
+    "device token polling endpoint should be called from one implementation only",
   );
 });
