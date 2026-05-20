@@ -67,13 +67,13 @@ test("#18: taskbounty_login delegates to the shared deviceLogin implementation",
   const loginCase = built.slice(loginCaseStart, nextCaseStart);
   assert.match(loginCase, /return await deviceLogin\(clientName\)/);
   assert.equal(
-    (built.match(/fetch\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/start`/g) ?? [])
+    (built.match(/fetch(?:WithTimeout)?\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/start`/g) ?? [])
       .length,
     1,
     "device start endpoint should be called from one implementation only",
   );
   assert.equal(
-    (built.match(/fetch\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/token`/g) ?? [])
+    (built.match(/fetch(?:WithTimeout)?\(`\$\{SITE_ORIGIN\}\/api\/mcp\/device\/token`/g) ?? [])
       .length,
     1,
     "device token polling endpoint should be called from one implementation only",

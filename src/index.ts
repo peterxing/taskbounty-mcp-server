@@ -88,6 +88,50 @@ const SITE_ORIGIN = API_BASE.replace(/\/api\/v1\/?$/, "");
 const CRED_DIR = join(homedir(), ".taskbounty");
 const CRED_PATH = join(CRED_DIR, "credentials.json");
 
+export class RequestTimeoutError extends Error {
+  constructor(
+    readonly url: string,
+    readonly timeoutMs: number,
+  ) {
+    super(`Request to ${url} timed out after ${timeoutMs}ms`);
+    this.name = "RequestTimeoutError";
+  }
+}
+
+function requestTimeoutMs(): number {
+  const parsed = Number.parseInt(
+    process.env.TASKBOUNTY_HTTP_TIMEOUT_MS ?? "",
+    10,
+  );
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_HTTP_TIMEOUT_MS;
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = requestTimeoutMs(),
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new RequestTimeoutError(url, timeoutMs);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function readStoredToken(): string {
   try {
     if (!existsSync(CRED_PATH)) return "";
