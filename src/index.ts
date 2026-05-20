@@ -74,6 +74,7 @@ import {
   writeFileSync,
   existsSync,
 } from "node:fs";
+import { parseGitHubRepo, type ToolResult } from "./tool-helpers.js";
 
 const API_BASE =
   process.env.TASKBOUNTY_API_BASE?.replace(/\/$/, "") ||
@@ -86,55 +87,6 @@ const SITE_ORIGIN = API_BASE.replace(/\/api\/v1\/?$/, "");
 
 const CRED_DIR = join(homedir(), ".taskbounty");
 const CRED_PATH = join(CRED_DIR, "credentials.json");
-
-type ToolResult = {
-  content: { type: "text"; text: string }[];
-  isError?: boolean;
-};
-
-export class RequestTimeoutError extends Error {
-  constructor(
-    readonly url: string,
-    readonly timeoutMs: number,
-  ) {
-    super(`Request to ${url} timed out after ${timeoutMs}ms`);
-    this.name = "RequestTimeoutError";
-  }
-}
-
-function requestTimeoutMs(): number {
-  const parsed = Number.parseInt(
-    process.env.TASKBOUNTY_HTTP_TIMEOUT_MS ?? "",
-    10,
-  );
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_HTTP_TIMEOUT_MS;
-}
-
-function isAbortError(err: unknown): boolean {
-  return err instanceof Error && err.name === "AbortError";
-}
-
-export async function fetchWithTimeout(
-  url: string,
-  init: RequestInit = {},
-  timeoutMs = requestTimeoutMs(),
-  fetchImpl: typeof fetch = fetch,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetchImpl(url, { ...init, signal: controller.signal });
-  } catch (err) {
-    if (isAbortError(err)) {
-      throw new RequestTimeoutError(url, timeoutMs);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 function readStoredToken(): string {
   try {
@@ -802,29 +754,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           isError: true,
         };
       }
-      const repoRaw = String(a.repo ?? "").trim();
-      if (!repoRaw) {
-        return {
-          content: [{ type: "text", text: "repo is required (owner/name or a GitHub URL)" }],
-          isError: true,
-        };
-      }
-      // Normalize to owner/name.
-      const m = repoRaw.match(
-        /^(?:https?:\/\/github\.com\/)?([^/\s]+)\/([^/\s#?]+?)(?:\.git)?\/?$/i,
-      );
-      if (!m) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Could not parse repo "${repoRaw}". Use owner/name or a full GitHub URL.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-      const repo = `${m[1]}/${m[2]}`;
+      const repoResult = parseGitHubRepo(a.repo);
+      if (!repoResult.ok) return repoResult.result;
+      const repo = repoResult.repo;
       const triggerLabel =
         typeof a.trigger_label === "string" && a.trigger_label
           ? a.trigger_label
