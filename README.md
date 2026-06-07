@@ -84,7 +84,7 @@ If you cloned locally instead:
   "mcpServers": {
     "taskbounty": {
       "command": "node",
-      "args": ["/absolute/path/to/agent-bounty-board/mcp-server/build/index.js"],
+      "args": ["/absolute/path/to/taskbounty-mcp-server/build/index.js"],
       "env": { "TASKBOUNTY_API_KEY": "tb_live_..." }
     }
   }
